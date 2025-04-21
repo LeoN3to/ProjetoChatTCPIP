@@ -124,8 +124,20 @@ class ChatApp:
         )
         send_btn.pack(side=tk.LEFT)
 
+    def is_connected(self):
+        """Verifica se a conexão está ativa"""
+        return hasattr(self, 'client_socket') and hasattr(self.client_socket,
+                                                          'fileno') and self.client_socket.fileno() != -1
+
     def connect_to_server(self):
         """Estabelece conexão com o servidor usando socket e threading"""
+        # Fecha conexão existente se houver
+        if hasattr(self, 'client_socket'):
+            try:
+                self.client_socket.close()
+            except:
+                pass
+
         # Primeiro pede o IP do servidor
         server_ip = simpledialog.askstring(
             "Configuração de Conexão",
@@ -191,25 +203,40 @@ class ChatApp:
         """Thread para receber mensagens do servidor"""
         while True:
             try:
+                if not self.is_connected():
+                    self.root.after(0, self.show_message, "Conexão perdida com o servidor")
+                    break
+
                 message = self.client_socket.recv(1024).decode('utf-8')
 
                 if not message:  # Conexão foi fechada
+                    self.root.after(0, self.show_message, "Servidor desconectou")
                     break
 
                 if message.startswith("/file:"):
                     self.handle_file_reception(message)
                 else:
-                    # Atualiza a interface gráfica na thread principal
                     self.root.after(0, self.show_message, message)
 
             except ConnectionResetError:
-                self.root.after(0, self.show_message, "Conexão com o servidor foi perdida.")
+                self.root.after(0, self.show_message, "Conexão com o servidor foi perdida")
+                break
+            except OSError as e:
+                if getattr(e, 'winerror', None) == 10038:  # Erro específico do Windows
+                    self.root.after(0, self.show_message, "Conexão foi encerrada")
+                else:
+                    self.root.after(0, self.show_message, f"Erro na conexão: {str(e)}")
                 break
             except Exception as e:
-                self.root.after(0, self.show_message, f"Erro ao receber mensagem: {str(e)}")
+                self.root.after(0, self.show_message, f"Erro inesperado: {str(e)}")
                 break
 
-        self.client_socket.close()
+        # Fecha o socket ao sair do loop
+        if self.is_connected():
+            try:
+                self.client_socket.close()
+            except:
+                pass
 
     def handle_file_reception(self, header):
         """Processa recebimento de arquivo"""
@@ -248,6 +275,10 @@ class ChatApp:
 
     def send_message(self):
         """Envia mensagem para o servidor"""
+        if not self.is_connected():
+            self.show_message("Erro: Não conectado ao servidor")
+            return
+
         message = self.message_entry.get().strip()
         self.message_entry.delete(0, 'end')
 
@@ -257,11 +288,28 @@ class ChatApp:
 
             try:
                 self.client_socket.send(formatted_message.encode('utf-8'))
+            except ConnectionResetError:
+                self.show_message("Erro: Conexão com o servidor foi perdida")
+                if self.is_connected():
+                    self.client_socket.close()
+            except OSError as e:
+                if getattr(e, 'winerror', None) == 10038:  # Erro específico do Windows
+                    self.show_message("Erro: Conexão inválida. Reconecte-se ao servidor")
+                else:
+                    self.show_message(f"Erro ao enviar mensagem: {str(e)}")
+                if self.is_connected():
+                    self.client_socket.close()
             except Exception as e:
-                self.show_message(f"Erro ao enviar mensagem: {str(e)}")
+                self.show_message(f"Erro inesperado: {str(e)}")
+                if self.is_connected():
+                    self.client_socket.close()
 
     def send_file(self):
         """Envia arquivo para o servidor"""
+        if not self.is_connected():
+            self.show_message("Erro: Não conectado ao servidor")
+            return
+
         filepath = filedialog.askopenfilename(
             title="Selecionar arquivo para enviar"
         )
@@ -275,6 +323,11 @@ class ChatApp:
 
             filename = os.path.basename(filepath)
 
+            # Verifica novamente a conexão antes de enviar
+            if not self.is_connected():
+                self.show_message("Erro: Conexão perdida durante envio do arquivo")
+                return
+
             # Envia cabeçalho do arquivo
             self.client_socket.send(f"/file:{filename}".encode('utf-8'))
             # Envia dados do arquivo
@@ -282,8 +335,21 @@ class ChatApp:
 
             self.show_message(f"Você enviou o arquivo '{filename}'")
 
+        except ConnectionResetError:
+            self.show_message("Erro: Conexão com o servidor foi perdida durante envio")
+            if self.is_connected():
+                self.client_socket.close()
+        except OSError as e:
+            if getattr(e, 'winerror', None) == 10038:
+                self.show_message("Erro: Conexão inválida durante envio do arquivo")
+            else:
+                self.show_message(f"Erro ao enviar arquivo: {str(e)}")
+            if self.is_connected():
+                self.client_socket.close()
         except Exception as e:
-            self.show_message(f"Erro ao enviar arquivo: {str(e)}")
+            self.show_message(f"Erro inesperado ao enviar arquivo: {str(e)}")
+            if self.is_connected():
+                self.client_socket.close()
 
     def open_emoji_window(self):
         """Abre janela de seleção de emojis"""
