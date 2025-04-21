@@ -1,192 +1,222 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import scrolledtext
-from tkinter import simpledialog
-from tkinter import ttk  #emoji
-from tkinter import filedialog
+from tkinter import scrolledtext, simpledialog, ttk, filedialog, messagebox
+from tkinter.font import Font
 import os
+from PIL import Image, ImageTk
 
 
-def abrir_janela_emojis():
-    janela_emojis = tk.Toplevel(janela)
-    janela_emojis.title("Selecionar Emoji")
-    janela_emojis.configure(bg="#2c2f33")
-    janela_emojis.resizable(False, False)
+class ChatApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("NetLink Chat")
+        self.root.geometry("800x600")
+        self.root.configure(bg='#36393f')
+        self.root.minsize(600, 400)
 
-    notebook = ttk.Notebook(janela_emojis)
-    notebook.pack(padx=10, pady=10)
-
-    categorias = {
-        "Carinhas": ['😀', '😂', '😍', '😢', '😡', '😎'],
-        "Gestos": ['👍', '🙏', '👎', '🤙', '👏', '👌'],
-        "Símbolos": ['❤️', '💔', '🎉', '💀', '✨', '🔥']
-    }
-
-    for nome_categoria, lista_emojis in categorias.items():
-        frame = tk.Frame(notebook, bg="#2c2f33")
-        notebook.add(frame, text=nome_categoria)
-
-        linha = 0
-        coluna = 0
-        for emoji in lista_emojis:
-            btn = tk.Button(
-                frame,
-                text=emoji,
-                width=4,
-                font=("Arial", 14),
-                command=lambda em=emoji: inserir_emoji_no_chat(em, janela_emojis)
-            )
-            btn.grid(row=linha, column=coluna, padx=5, pady=5)
-            coluna += 1
-            if coluna > 5:
-                coluna = 0
-                linha += 1
-
-def inserir_emoji_no_chat(emoji, janela_emojis):
-    entrada_mensagem.insert(tk.END, emoji)
-    janela_emojis.destroy()
-
-
-# Função para receber mensagens do servidor
-
-def receber_mensagens():
-    while True:
+        # Configurar ícone
         try:
-            mensagem = cliente.recv(1024).decode('utf-8')
-            if mensagem.startswith("/file:"):
-                nome_arquivo = mensagem.split(":", 1)[1]
-                dados = cliente.recv(1024 * 1024)
-                with open(f"recebido_{nome_arquivo}", "wb") as f:
-                    f.write(dados)
-                mostrar_mensagem(f"Arquivo recebido: recebido_{nome_arquivo}")
-            else:
-                mostrar_mensagem(mensagem)
+            self.root.iconbitmap('chat_icon.ico')  # Adicione um arquivo .ico na pasta
         except:
-            mostrar_mensagem("Conexão encerrada.")
-            cliente.close()
-            break
+            pass
 
-# Mostrar mensagem na janela
+        # Fontes personalizadas
+        self.main_font = Font(family="Segoe UI", size=12)
+        self.title_font = Font(family="Segoe UI", size=14, weight="bold")
 
-def mostrar_mensagem(mensagem):
-    area_texto.config(state='normal')
-    area_texto.insert('end', mensagem + '\n')
-    area_texto.config(state='disabled')
-    area_texto.see('end')
+        # Cores
+        self.bg_color = "#36393f"
+        self.text_bg = "#2f3136"
+        self.text_fg = "#dcddde"
+        self.button_bg = "#5865f2"
+        self.button_active = "#4752c4"
+        self.entry_bg = "#40444b"
 
-# Enviar mensagem ao servidor
+        self.setup_ui()
+        self.connect_to_server()
 
-def enviar_mensagem():
-    mensagem = entrada_mensagem.get()
-    entrada_mensagem.delete(0, 'end')
-    if mensagem:
-        mensagem_formatada = f"{nome}: {mensagem}"
-        mostrar_mensagem(mensagem_formatada)
-        cliente.send(mensagem_formatada.encode('utf-8'))
+    def setup_ui(self):
+        # Frame principal
+        main_frame = tk.Frame(self.root, bg=self.bg_color)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-def enviar_arquivo():
-    caminho_arquivo = filedialog.askopenfilename()
-    if caminho_arquivo:
+        # Área de chat
+        self.chat_area = scrolledtext.ScrolledText(
+            main_frame,
+            state='disabled',
+            fg=self.text_fg,
+            bg=self.text_bg,
+            font=self.main_font,
+            wrap=tk.WORD,
+            padx=10,
+            pady=10
+        )
+        self.chat_area.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Frame de entrada
+        input_frame = tk.Frame(main_frame, bg=self.bg_color)
+        input_frame.pack(fill=tk.X)
+
+        # Botão de emoji
+        emoji_btn = tk.Button(
+            input_frame,
+            text="😊",
+            command=self.open_emoji_window,
+            bg=self.button_bg,
+            fg="white",
+            activebackground=self.button_active,
+            font=self.main_font,
+            relief=tk.FLAT,
+            width=3
+        )
+        emoji_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Botão de arquivo
+        file_btn = tk.Button(
+            input_frame,
+            text="📎",
+            command=self.send_file,
+            bg=self.button_bg,
+            fg="white",
+            activebackground=self.button_active,
+            font=self.main_font,
+            relief=tk.FLAT,
+            width=3
+        )
+        file_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+        # Campo de entrada de mensagem
+        self.message_entry = tk.Entry(
+            input_frame,
+            width=50,
+            fg=self.text_fg,
+            bg=self.entry_bg,
+            insertbackground='white',
+            font=self.main_font,
+            relief=tk.FLAT
+        )
+        self.message_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.message_entry.bind("<Return>", lambda e: self.send_message())
+
+        # Botão de enviar
+        send_btn = tk.Button(
+            input_frame,
+            text="Enviar",
+            command=self.send_message,
+            bg=self.button_bg,
+            fg="white",
+            activebackground=self.button_active,
+            font=self.main_font,
+            relief=tk.FLAT
+        )
+        send_btn.pack(side=tk.LEFT)
+
+    def connect_to_server(self):
+        self.username = simpledialog.askstring("NetLink Chat", "Digite seu nome:", parent=self.root)
+        if not self.username:
+            messagebox.showerror("Erro", "Você precisa digitar um nome para entrar no chat.")
+            self.root.destroy()
+            return
+
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            with open(caminho_arquivo, 'rb') as f:
-                dados = f.read()
-            nome_arquivo = os.path.basename(caminho_arquivo)
-            cliente.send(f"/file:{nome_arquivo}".encode('utf-8'))
-            cliente.sendall(dados)
-            mostrar_mensagem(f"Você enviou o arquivo '{nome_arquivo}'")
+            self.client.connect(('192.168.100.81', 12345))
+            self.client.send(f"{self.username} entrou no chat.".encode('utf-8'))
+
+            self.receive_thread = threading.Thread(target=self.receive_messages, daemon=True)
+            self.receive_thread.start()
         except Exception as e:
-            mostrar_mensagem(f"Erro ao enviar arquivo: {e}")
+            messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao servidor:\n{str(e)}")
+            self.root.destroy()
+
+    def receive_messages(self):
+        while True:
+            try:
+                message = self.client.recv(1024).decode('utf-8')
+                if message.startswith("/file:"):
+                    filename = message.split(":", 1)[1]
+                    data = self.client.recv(1024 * 1024)
+                    save_path = filedialog.asksaveasfilename(
+                        initialfile=f"recebido_{filename}",
+                        title="Salvar arquivo recebido"
+                    )
+                    if save_path:
+                        with open(save_path, "wb") as f:
+                            f.write(data)
+                        self.show_message(f"Arquivo recebido e salvo como: {save_path}")
+                else:
+                    self.show_message(message)
+            except Exception as e:
+                self.show_message("Conexão encerrada.")
+                self.client.close()
+                break
+
+    def show_message(self, message):
+        self.chat_area.config(state='normal')
+        self.chat_area.insert('end', message + '\n')
+        self.chat_area.config(state='disabled')
+        self.chat_area.see('end')
+
+    def send_message(self):
+        message = self.message_entry.get()
+        self.message_entry.delete(0, 'end')
+        if message:
+            formatted_message = f"{self.username}: {message}"
+            self.show_message(formatted_message)
+            self.client.send(formatted_message.encode('utf-8'))
+
+    def send_file(self):
+        filepath = filedialog.askopenfilename()
+        if filepath:
+            try:
+                with open(filepath, 'rb') as f:
+                    data = f.read()
+                filename = os.path.basename(filepath)
+                self.client.send(f"/file:{filename}".encode('utf-8'))
+                self.client.sendall(data)
+                self.show_message(f"Você enviou o arquivo '{filename}'")
+            except Exception as e:
+                self.show_message(f"Erro ao enviar arquivo: {e}")
+
+    def open_emoji_window(self):
+        emoji_window = tk.Toplevel(self.root)
+        emoji_window.title("Selecionar Emoji")
+        emoji_window.configure(bg=self.bg_color)
+        emoji_window.resizable(False, False)
+
+        notebook = ttk.Notebook(emoji_window)
+        notebook.pack(padx=10, pady=10)
+
+        categories = {
+            "Carinhas": ['😀', '😂', '😍', '😢', '😡', '😎', '🤩', '🥳', '😴', '🤯'],
+            "Gestos": ['👍', '🙏', '👎', '🤙', '👏', '👌', '🤝', '✌️', '🤘', '🤞'],
+            "Símbolos": ['❤️', '💔', '🎉', '💀', '✨', '🔥', '🌟', '💎', '⚡', '🌈']
+        }
+
+        for category_name, emoji_list in categories.items():
+            frame = tk.Frame(notebook, bg=self.bg_color)
+            notebook.add(frame, text=category_name)
+
+            for i, emoji in enumerate(emoji_list):
+                btn = tk.Button(
+                    frame,
+                    text=emoji,
+                    font=("Arial", 14),
+                    command=lambda e=emoji: self.insert_emoji(e, emoji_window),
+                    bg=self.button_bg,
+                    fg="white",
+                    activebackground=self.button_active,
+                    relief=tk.FLAT
+                )
+                btn.grid(row=i // 5, column=i % 5, padx=5, pady=5)
+
+    def insert_emoji(self, emoji, window):
+        self.message_entry.insert(tk.END, emoji)
+        window.destroy()
 
 
-# Criar interface
-
-janela = tk.Tk()
-janela.title("Chat TCP/IP")
-janela.configure(bg='#2c2f33')  # Fundo escuro
-
-area_texto = scrolledtext.ScrolledText(
-    janela, 
-    state='disabled', 
-    fg='#f1f1f1', 
-    bg='#23272a',
-    font=('Consolas', 12),
-    wrap='word'
-)
-area_texto.pack(padx=10, pady=10)
-
-entrada_mensagem = tk.Entry(
-    janela, 
-    width=50, 
-    fg='#f1f1f1', 
-    bg='#23272a',
-    insertbackground='white',  # cor do cursor
-    font=('Consolas', 11)
-)
-entrada_mensagem.pack(padx=10, pady=5, side='left')
-entrada_mensagem.bind("<Return>", lambda event: enviar_mensagem())
-
-botao_enviar = tk.Button(
-    janela, 
-    text="Enviar", 
-    command=enviar_mensagem, 
-    fg='white', 
-    bg='#7289da',
-    activebackground='#5b6eae',
-    font=('Verdana', 10, 'bold')
-)
-botao_enviar.pack(padx=5, pady=5, side='left')
-
-# Botão para abrir janela de emojis
-
-botao_emoji = tk.Button(
-    janela,
-    text="😀",
-    command=lambda: abrir_janela_emojis(),
-    fg='white',
-    bg='#7289da',
-    activebackground='#5b6eae',
-    font=('Verdana', 10, 'bold')
-)
-botao_emoji.pack(padx=5, pady=5, side='left')
-
-# Botão para enviar arquivos
-
-botao_arquivo = tk.Button(
-    janela,
-    text="📎 Arquivo",
-    command=enviar_arquivo,
-    fg='white',
-    bg='#7289da',
-    activebackground='#5b6eae',
-    font=('Verdana', 10, 'bold')
-)
-botao_arquivo.pack(padx=5, pady=5, side='left')
-
-
-
-# Perguntar o nome do usuário
-
-nome = simpledialog.askstring("Nome", "Digite seu nome:")
-
-# Conectar ao servidor
-
-HOST = '192.168.100.81'
-PORT = 12345
-
-cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-cliente.connect((HOST, PORT))
-
-# Enviar nome ao entrar
-
-cliente.send(f"{nome} entrou no chat.".encode('utf-8'))
-
-# Thread para receber mensagens
-
-thread_receber = threading.Thread(target=receber_mensagens)
-thread_receber.daemon = True
-thread_receber.start()
-
-# Iniciar a interface
-
-janela.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ChatApp(root)
+    root.mainloop()
