@@ -1,6 +1,3 @@
-"""
-CLIENTE DE CHAT COM INTERFACE GRÁFICA - VERSÃO FINAL CORRIGIDA
-"""
 import socket
 import threading
 import tkinter as tk
@@ -12,7 +9,7 @@ import time
 
 class ChatApp:
     def __init__(self, root):
-        """Inicializa a aplicação de chat"""
+        #Inicializa a aplicação de chat
         self.root = root
         self.configure_main_window()
         self.setup_variables()
@@ -20,7 +17,7 @@ class ChatApp:
         self.connect_to_server()
 
     def configure_main_window(self):
-        """Configura a janela principal"""
+        #Configura a janela principal
         self.root.title("NetLink Chat")
         self.root.geometry("800x600")
         self.root.configure(bg='#36393f')
@@ -32,7 +29,7 @@ class ChatApp:
             pass
 
     def setup_variables(self):
-        """Configura variáveis e estilos"""
+        #Configura variáveis e estilos
         # Fontes
         self.main_font = Font(family="Segoe UI", size=12)
         self.title_font = Font(family="Segoe UI", size=14, weight="bold")
@@ -53,7 +50,7 @@ class ChatApp:
         self.connection_active = False
 
     def setup_ui(self):
-        """Configura a interface do usuário"""
+        #Configura a interface do usuário
         # Frame principal
         main_frame = tk.Frame(self.root, bg=self.bg_color)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -143,12 +140,12 @@ class ChatApp:
         self.connection_btn.pack(pady=5)
 
     def is_connected(self):
-        """Verifica se a conexão está ativa"""
+        #Verifica se a conexão está ativa
         return self.connection_active and self.client_socket and hasattr(self.client_socket,
                                                                          'fileno') and self.client_socket.fileno() != -1
 
     def connect_to_server(self):
-        """Estabelece conexão com o servidor"""
+        #Estabelece conexão com o servidor
         # Fecha conexão existente se houver
         self.close_connection()
 
@@ -212,11 +209,11 @@ class ChatApp:
             self.connection_btn.config(state=tk.NORMAL)
 
     def reconnect(self):
-        """Tenta reconectar ao servidor"""
+        #Tenta reconectar ao servidor
         self.connect_to_server()
 
     def close_connection(self):
-        """Fecha a conexão atual"""
+        #Fecha a conexão atual
         if hasattr(self, 'client_socket') and self.client_socket:
             try:
                 self.client_socket.close()
@@ -226,7 +223,7 @@ class ChatApp:
         self.client_socket = None
 
     def receive_messages(self):
-        """Thread para receber mensagens do servidor"""
+        #Thread para receber mensagens do servidor
         while self.is_connected():
             try:
                 message = self.client_socket.recv(1024).decode('utf-8')
@@ -259,7 +256,7 @@ class ChatApp:
         self.show_message("Desconectado. Clique em 'Reconectar' para tentar novamente.")
 
     def handle_file_reception(self, header):
-        """Processa recebimento de arquivo"""
+        #Processa recebimento de arquivo
         if not self.is_connected():
             return
 
@@ -282,14 +279,14 @@ class ChatApp:
             self.show_message(f"Erro ao receber arquivo: {str(e)}")
 
     def show_message(self, message):
-        """Exibe mensagem na área de chat"""
+        #Exibe mensagem na área de chat
         self.chat_area.config(state='normal')
         self.chat_area.insert('end', message + '\n')
         self.chat_area.config(state='disabled')
         self.chat_area.see('end')
 
     def send_message(self):
-        """Envia mensagem para o servidor"""
+        #Envia mensagem para o servidor
         if not self.is_connected():
             self.show_message("Erro: Não conectado ao servidor")
             return
@@ -310,7 +307,7 @@ class ChatApp:
                 self.connection_lost()
 
     def send_file(self):
-        """Envia arquivo para o servidor"""
+        #Envia arquivo para o servidor
         if not self.is_connected():
             self.show_message("Erro: Não conectado ao servidor")
             return
@@ -380,7 +377,7 @@ class ChatApp:
                 btn.grid(row=i // 5, column=i % 5, padx=5, pady=5)
 
     def insert_emoji(self, emoji, window):
-        """Insere emoji no campo de mensagem e fecha janela"""
+        #Insere emoji no campo de mensagem e fecha janela
         self.message_entry.insert(tk.END, emoji)
         window.destroy()
 
