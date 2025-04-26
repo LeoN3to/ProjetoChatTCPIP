@@ -4,12 +4,11 @@ import tkinter as tk
 from tkinter import scrolledtext, simpledialog, ttk, filedialog, messagebox
 from tkinter.font import Font
 import os
-import time
 
 
 class ChatApp:
     def __init__(self, root):
-        #Inicializa a aplicação de chat
+        #Inicia o chat
         self.root = root
         self.configure_main_window()
         self.setup_variables()
@@ -17,7 +16,7 @@ class ChatApp:
         self.connect_to_server()
 
     def configure_main_window(self):
-        #Configura a janela principal
+        #Janela principal
         self.root.title("NetLink Chat")
         self.root.geometry("800x600")
         self.root.configure(bg='#36393f')
@@ -50,7 +49,6 @@ class ChatApp:
         self.connection_active = False
 
     def setup_ui(self):
-        #Configura a interface do usuário
         # Frame principal
         main_frame = tk.Frame(self.root, bg=self.bg_color)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -145,7 +143,6 @@ class ChatApp:
                                                                          'fileno') and self.client_socket.fileno() != -1
 
     def connect_to_server(self):
-        #Estabelece conexão com o servidor
         # Fecha conexão existente se houver
         self.close_connection()
 
@@ -177,11 +174,11 @@ class ChatApp:
 
             # Cria novo socket
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client_socket.settimeout(8)  # Timeout de conexão
+            self.client_socket.settimeout(30)  # Timeout de conexão
 
             # Tenta conexão
             self.client_socket.connect((server_ip, self.server_port))
-            self.client_socket.settimeout(60)  # Timeout para operações normais
+            self.client_socket.settimeout(300)  # Timeout para operações normais
             self.connection_active = True
 
             # Envia nome do usuário
@@ -250,7 +247,7 @@ class ChatApp:
         self.root.after(0, self.connection_lost)
 
     def connection_lost(self):
-        """Lida com a perda de conexão"""
+        #Perda de conexão
         self.close_connection()
         self.connection_btn.config(state=tk.NORMAL)
         self.show_message("Desconectado. Clique em 'Reconectar' para tentar novamente.")
@@ -344,7 +341,7 @@ class ChatApp:
             self.connection_lost()
 
     def open_emoji_window(self):
-        """Abre janela de seleção de emojis"""
+        #Abre janela de seleção de emojis
         emoji_window = tk.Toplevel(self.root)
         emoji_window.title("Selecionar Emoji")
         emoji_window.configure(bg=self.bg_color)

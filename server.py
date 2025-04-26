@@ -6,14 +6,13 @@ import logging
 
 class ChatServer:
     def __init__(self, host='0.0.0.0', port=12345):
-        """Inicializa o servidor de chat"""
         self.host = host
         self.port = port
-        self.clients = []  # Lista de clientes conectados (socket, nome)
-        self.server_socket = None
+        self.clients = []
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.running = False
 
-        # Configuração de logging
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -25,18 +24,15 @@ class ChatServer:
         self.logger = logging.getLogger('ChatServer')
 
     def start(self):
-        """Inicia o servidor"""
         try:
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.server_socket.bind((self.host, self.port))
-            self.server_socket.listen(5)  # Permite até 5 conexões pendentes
+            self.server_socket.listen(5)
             self.running = True
+            self.logger.info(f"Servidor iniciado em {self.host}:{self.port}")
 
-            self.logger.info(f"Servidor iniciado em {self.host}:{self.port}. Aguardando conexões...")
-
-            # Thread para aceitar conexões
-            accept_thread = threading.Thread(target=self.accept_connections, daemon=True)
+            # Thread principal para aceitar conexões
+            accept_thread = threading.Thread(target=self.accept_connections)
+            accept_thread.daemon = True
             accept_thread.start()
 
             # Mantém o servidor ativo
@@ -44,165 +40,72 @@ class ChatServer:
                 pass
 
         except Exception as e:
-            self.logger.error(f"Erro ao iniciar servidor: {e}", exc_info=True)
+            self.logger.error(f"Erro ao iniciar servidor: {e}")
             self.stop()
 
     def accept_connections(self):
-        """Aceita novas conexões de clientes"""
         while self.running:
             try:
                 client, address = self.server_socket.accept()
-                self.logger.info(f"Nova conexão de {address}")
+                client.settimeout(180)  # Timeout de 180 segundos para estabelecer conexão
+                self.logger.info(f"Conexão estabelecida com {address}")
 
-                # Thread para receber o nome do cliente
-                name_thread = threading.Thread(
-                    target=self.receive_client_name,
-                    args=(client, address),
-                    daemon=True
+                # Thread para lidar com o cliente
+                client_thread = threading.Thread(
+                    target=self.handle_client,
+                    args=(client, address)
                 )
-                name_thread.start()
+                client_thread.daemon = True
+                client_thread.start()
 
-            except OSError as e:
+            except socket.timeout:
+                continue
+            except Exception as e:
                 if self.running:
                     self.logger.error(f"Erro ao aceitar conexão: {e}")
-                break
-            except Exception as e:
-                self.logger.error(f"Erro inesperado: {e}", exc_info=True)
-                continue
 
-    def receive_client_name(self, client, address):
-        """Recebe e registra o nome do cliente"""
+    def handle_client(self, client, address):
         try:
-            # Recebe o nome do cliente (primeira mensagem obrigatória)
-            name_data = client.recv(1024)
-            if not name_data:
-                raise ConnectionError("Cliente desconectou antes de enviar nome")
+            # Recebe o nome do cliente com timeout
+            client.settimeout(70)  # 70 segundos para enviar o nome
+            name = client.recv(1024).decode('utf-8').strip()
 
-            client_name = name_data.decode('utf-8').strip()
+            if not name:
+                raise ValueError("Nome vazio recebido")
 
-            if not client_name:
-                raise ValueError("Nome do cliente vazio")
+            self.clients.append((client, name))
+            self.broadcast(f"{name} entrou no chat.", exclude=client)
+            self.logger.info(f"{name} conectado de {address}")
 
-            # Adiciona à lista de clientes
-            self.clients.append((client, client_name))
-            self.logger.info(f"Cliente registrado: {client_name} ({address})")
+            # Reduz timeout após conexão estabelecida
+            client.settimeout(300)  # 5 minutos de inatividade
 
-            # Notifica todos sobre o novo usuário
-            self.broadcast(f"{client_name} entrou no chat.", exclude_client=client)
+            while self.running:
+                try:
+                    message = client.recv(1024).decode('utf-8')
+                    if not message:
+                        break
 
-            # Inicia thread para receber mensagens deste cliente
-            client_thread = threading.Thread(
-                target=self.handle_client,
-                args=(client, client_name),
-                daemon=True
-            )
-            client_thread.start()
+                    if message.startswith("/file:"):
+                        self.handle_file(client, name, message)
+                    else:
+                        self.broadcast(f"[{datetime.now().strftime('%H:%M')}] {name}: {message}")
 
-        except Exception as e:
-            self.logger.error(f"Erro ao registrar cliente {address}: {e}")
-            client.close()
-
-    def handle_client(self, client, client_name):
-        """Gerencia a comunicação com um cliente específico"""
-        while self.running:
-            try:
-                message = client.recv(1024).decode('utf-8')
-
-                if not message:  # Cliente desconectou
+                except socket.timeout:
+                    continue
+                except:
                     break
 
-                if message.startswith("/file:"):
-                    self.handle_file(client, message, client_name)
-                else:
-                    timestamp = datetime.now().strftime("%H:%M")
-                    formatted_msg = f"[{timestamp}] {client_name}: {message}"
-                    self.logger.info(f"Mensagem de {client_name}: {message}")
-                    self.broadcast(formatted_msg, exclude_client=client)
-
-            except ConnectionResetError:
-                break
-            except Exception as e:
-                self.logger.error(f"Erro com cliente {client_name}: {e}")
-                break
-
-        self.remove_client(client, client_name)
-
-    def handle_file(self, client, header, sender_name):
-        """Processa o recebimento de um arquivo"""
-        try:
-            filename = header.split(":", 1)[1]
-            file_data = client.recv(1024 * 1024)  # 1MB máximo
-
-            timestamp = datetime.now().strftime("%H:%M")
-            notification = f"[{timestamp}] {sender_name} enviou um arquivo: {filename}"
-            self.logger.info(notification)
-
-            # Envia para todos os clientes, exceto o remetente
-            for c, name in self.clients:
-                if c != client:
-                    try:
-                        c.send(f"/file:{filename}".encode('utf-8'))
-                        c.sendall(file_data)
-                        c.send(notification.encode('utf-8'))
-                    except:
-                        continue
-
+        except socket.timeout:
+            self.logger.warning(f"Timeout na conexão com {address}")
         except Exception as e:
-            self.logger.error(f"Erro ao processar arquivo de {sender_name}: {e}")
-
-    def broadcast(self, message, exclude_client=None):
-        """Envia mensagem para todos os clientes, exceto o especificado"""
-        for client, name in self.clients:
-            if client != exclude_client:
-                try:
-                    client.send(message.encode('utf-8'))
-                except:
-                    continue
-
-    def remove_client(self, client, client_name):
-        """Remove um cliente da lista e notifica os demais"""
-        for i, (c, name) in enumerate(self.clients):
-            if c == client:
-                self.clients.pop(i)
-                break
-
-        try:
-            client.close()
-        except:
-            pass
-
-        leave_message = f"{client_name} saiu do chat."
-        self.broadcast(leave_message)
-        self.logger.info(f"Cliente desconectado: {client_name}")
-
-    def stop(self):
-        """Encerra o servidor corretamente"""
-        self.running = False
-        self.logger.info("Encerrando servidor...")
-
-        # Notifica todos os clientes
-        self.broadcast("O servidor está sendo desligado.")
-
-        # Fecha todas as conexões
-        for client, name in self.clients:
-            try:
-                client.close()
-            except:
-                continue
-
-        # Fecha o socket do servidor
-        if self.server_socket:
-            try:
-                self.server_socket.close()
-            except:
-                pass
-
-        self.logger.info("Servidor encerrado com sucesso.")
+            self.logger.error(f"Erro com cliente {address}: {e}")
+        finally:
+            self.remove_client(client, name)
 
 
 if __name__ == "__main__":
     server = ChatServer()
-
     try:
         server.start()
     except KeyboardInterrupt:
