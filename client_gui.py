@@ -4,379 +4,343 @@ import tkinter as tk
 from tkinter import scrolledtext, simpledialog, ttk, filedialog, messagebox
 from tkinter.font import Font
 import os
-
+from datetime import datetime
 
 class ChatApp:
     def __init__(self, root):
-        #Inicia o chat
+        # Inicializa o chat
         self.root = root
-        self.configure_main_window()
-        self.setup_variables()
-        self.setup_ui()
-        self.connect_to_server()
+        self.configurar_janela()
+        self.criar_variaveis()
+        self.montar_interface()
+        self.conectar_no_servidor()
 
-    def configure_main_window(self):
-        #Janela principal
+    def configurar_janela(self):
         self.root.title("NetLink Chat")
         self.root.geometry("800x600")
         self.root.configure(bg='#36393f')
         self.root.minsize(600, 400)
-
         try:
             self.root.iconbitmap('chat_icon.ico')
         except:
             pass
 
-    def setup_variables(self):
-        #Configura variáveis e estilos
-        # Fontes
-        self.main_font = Font(family="Segoe UI", size=12)
-        self.title_font = Font(family="Segoe UI", size=14, weight="bold")
+    def criar_variaveis(self):
+        self.fonte_principal = Font(family="Segoe UI", size=12)
+        self.fonte_titulo = Font(family="Segoe UI", size=14, weight="bold")
 
-        # Esquema de cores
-        self.bg_color = "#36393f"
-        self.text_bg = "#2f3136"
-        self.text_fg = "#dcddde"
-        self.button_bg = "#5865f2"
-        self.button_active = "#4752c4"
-        self.entry_bg = "#40444b"
+        self.cor_fundo = "#36393f"
+        self.cor_texto_fundo = "#2f3136"
+        self.cor_texto = "#dcddde"
+        self.cor_botao = "#5865f2"
+        self.cor_botao_ativo = "#4752c4"
+        self.cor_campo = "#40444b"
 
-        # Variáveis de conexão
-        self.server_port = 12345
-        self.username = None
-        self.client_socket = None
-        self.receive_thread = None
-        self.connection_active = False
+        self.porta_servidor = 12345
+        self.nome_usuario = None
+        self.socket_cliente = None
+        self.thread_receber = None
+        self.conexao_ativa = False
 
-    def setup_ui(self):
-        # Frame principal
-        main_frame = tk.Frame(self.root, bg=self.bg_color)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    def montar_interface(self):
+        frame_principal = tk.Frame(self.root, bg=self.cor_fundo)
+        frame_principal.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Área de chat
-        self.chat_area = scrolledtext.ScrolledText(
-            main_frame,
+        self.area_chat = scrolledtext.ScrolledText(
+            frame_principal,
             state='disabled',
-            fg=self.text_fg,
-            bg=self.text_bg,
-            font=self.main_font,
+            fg=self.cor_texto,
+            bg=self.cor_texto_fundo,
+            font=self.fonte_principal,
             wrap=tk.WORD,
             padx=10,
             pady=10
         )
-        self.chat_area.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        self.area_chat.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        # Frame de entrada
-        input_frame = tk.Frame(main_frame, bg=self.bg_color)
-        input_frame.pack(fill=tk.X)
+        frame_entrada = tk.Frame(frame_principal, bg=self.cor_fundo)
+        frame_entrada.pack(fill=tk.X)
 
-        # Botão de emoji
-        emoji_btn = tk.Button(
-            input_frame,
+        botao_emoji = tk.Button(
+            frame_entrada,
             text="😊",
-            command=self.open_emoji_window,
-            bg=self.button_bg,
+            command=self.abrir_janela_emojis,
+            bg=self.cor_botao,
             fg="white",
-            activebackground=self.button_active,
-            font=self.main_font,
+            activebackground=self.cor_botao_ativo,
+            font=self.fonte_principal,
             relief=tk.FLAT,
             width=3
         )
-        emoji_btn.pack(side=tk.LEFT, padx=(0, 5))
+        botao_emoji.pack(side=tk.LEFT, padx=(0, 5))
 
-        # Botão de arquivo
-        file_btn = tk.Button(
-            input_frame,
+        botao_arquivo = tk.Button(
+            frame_entrada,
             text="📎",
-            command=self.send_file,
-            bg=self.button_bg,
+            command=self.enviar_arquivo,
+            bg=self.cor_botao,
             fg="white",
-            activebackground=self.button_active,
-            font=self.main_font,
+            activebackground=self.cor_botao_ativo,
+            font=self.fonte_principal,
             relief=tk.FLAT,
             width=3
         )
-        file_btn.pack(side=tk.LEFT, padx=(0, 5))
+        botao_arquivo.pack(side=tk.LEFT, padx=(0, 5))
 
-        # Campo de entrada de mensagem
-        self.message_entry = tk.Entry(
-            input_frame,
+        self.campo_mensagem = tk.Entry(
+            frame_entrada,
             width=50,
-            fg=self.text_fg,
-            bg=self.entry_bg,
+            fg=self.cor_texto,
+            bg=self.cor_campo,
             insertbackground='white',
-            font=self.main_font,
+            font=self.fonte_principal,
             relief=tk.FLAT
         )
-        self.message_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.message_entry.bind("<Return>", lambda e: self.send_message())
+        self.campo_mensagem.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+        self.campo_mensagem.bind("<Return>", lambda e: self.enviar_mensagem())
 
-        # Botão de enviar
-        send_btn = tk.Button(
-            input_frame,
+        botao_enviar = tk.Button(
+            frame_entrada,
             text="Enviar",
-            command=self.send_message,
-            bg=self.button_bg,
+            command=self.enviar_mensagem,
+            bg=self.cor_botao,
             fg="white",
-            activebackground=self.button_active,
-            font=self.main_font,
+            activebackground=self.cor_botao_ativo,
+            font=self.fonte_principal,
             relief=tk.FLAT
         )
-        send_btn.pack(side=tk.LEFT)
+        botao_enviar.pack(side=tk.LEFT)
 
-        # Botão de conexão
-        self.connection_btn = tk.Button(
-            main_frame,
+        self.botao_conexao = tk.Button(
+            frame_principal,
             text="Reconectar",
-            command=self.reconnect,
+            command=self.tentar_reconectar,
             bg="#7289da",
             fg="white",
-            font=self.main_font,
+            font=self.fonte_principal,
             relief=tk.FLAT,
             state=tk.DISABLED
         )
-        self.connection_btn.pack(pady=5)
+        self.botao_conexao.pack(pady=5)
 
-    def is_connected(self):
-        #Verifica se a conexão está ativa
-        return self.connection_active and self.client_socket and hasattr(self.client_socket,
-                                                                         'fileno') and self.client_socket.fileno() != -1
+        self.botao_reconectar = tk.Button(self.root, text="Reconectar", command=self.tentar_reconectar)
+        self.botao_reconectar.pack(pady=5)
+        self.botao_reconectar.config(state=tk.DISABLED)
 
-    def connect_to_server(self):
-        # Fecha conexão existente se houver
-        self.close_connection()
+    def ta_conectado(self):
+        return (self.conexao_ativa and self.socket_cliente and
+                hasattr(self.socket_cliente, 'fileno') and self.socket_cliente.fileno() != -1)
 
-        # Pede informações de conexão
-        server_ip = simpledialog.askstring(
+    def conectar_no_servidor(self):
+        self.fechar_conexao()
+        ip_servidor = simpledialog.askstring(
             "Configuração de Conexão",
             "Digite o IP do servidor:",
             parent=self.root,
             initialvalue="127.0.0.1"
         )
 
-        if not server_ip:
+        if not ip_servidor:
             messagebox.showerror("Erro", "Você deve informar o IP do servidor.")
             return
 
-        self.username = simpledialog.askstring(
+        self.nome_usuario = simpledialog.askstring(
             "NetLink Chat",
             "Digite seu nome:",
             parent=self.root
         )
 
-        if not self.username:
+        if not self.nome_usuario:
             messagebox.showerror("Erro", "Você precisa digitar um nome para entrar no chat.")
             return
 
         try:
-            # Mostra mensagem de conexão
-            self.show_message("Conectando ao servidor...")
+            self.mostrar_mensagem("Conectando ao servidor...")
 
-            # Cria novo socket
-            self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client_socket.settimeout(30)  # Timeout de conexão
+            self.socket_cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket_cliente.settimeout(30)
+            self.socket_cliente.connect((ip_servidor, self.porta_servidor))
+            self.socket_cliente.settimeout(None)
+            self.conexao_ativa = True
 
-            # Tenta conexão
-            self.client_socket.connect((server_ip, self.server_port))
-            self.client_socket.settimeout(300)  # Timeout para operações normais
-            self.connection_active = True
+            self.socket_cliente.send(self.nome_usuario.encode('utf-8'))
 
-            # Envia nome do usuário
-            self.client_socket.send(self.username.encode('utf-8'))
+            mensagem_boas_vindas = f"Conectado como {self.nome_usuario}"
+            self.mostrar_mensagem(mensagem_boas_vindas)
 
-            # Mostra mensagem de sucesso
-            welcome_msg = f"Conectado como {self.username}"
-            self.show_message(welcome_msg)
+            self.thread_receber = threading.Thread(target=self.pegar_mensagens, daemon=True)
+            self.thread_receber.start()
 
-            # Inicia thread para receber mensagens
-            self.receive_thread = threading.Thread(
-                target=self.receive_messages,
-                daemon=True
-            )
-            self.receive_thread.start()
-
-            # Atualiza interface
-            self.connection_btn.config(state=tk.DISABLED)
+            self.botao_conexao.config(state=tk.DISABLED)
 
         except socket.timeout:
-            self.show_message("Erro: Tempo esgotado ao conectar ao servidor")
-            self.connection_btn.config(state=tk.NORMAL)
+            self.mostrar_mensagem("Erro: Tempo esgotado ao conectar ao servidor")
+            self.botao_conexao.config(state=tk.NORMAL)
         except Exception as e:
-            self.show_message(f"Erro de conexão: {str(e)}")
-            self.connection_btn.config(state=tk.NORMAL)
+            self.mostrar_mensagem(f"Erro de conexão: {str(e)}")
+            self.botao_conexao.config(state=tk.NORMAL)
 
-    def reconnect(self):
-        #Tenta reconectar ao servidor
-        self.connect_to_server()
+    def tentar_reconectar(self):
+        self.conectar_no_servidor()
+        self.botao_reconectar.config(state=tk.DISABLED)
 
-    def close_connection(self):
-        #Fecha a conexão atual
-        if hasattr(self, 'client_socket') and self.client_socket:
+    def fechar_conexao(self):
+        if hasattr(self, 'socket_cliente') and self.socket_cliente:
             try:
-                self.client_socket.close()
+                self.socket_cliente.close()
             except:
                 pass
-        self.connection_active = False
-        self.client_socket = None
+        self.conexao_ativa = False
+        self.socket_cliente = None
 
-    def receive_messages(self):
-        #Thread para receber mensagens do servidor
-        while self.is_connected():
+    def pegar_mensagens(self):
+        while self.ta_conectado():
             try:
-                message = self.client_socket.recv(1024).decode('utf-8')
+                dados = self.socket_cliente.recv(4096)
 
-                if not message:  # Conexão foi fechada
-                    self.root.after(0, self.show_message, "Servidor desconectou")
+                if not dados:
+                    self.root.after(0, self.mostrar_mensagem, "Servidor desconectou")
                     break
 
-                if message.startswith("/file:"):
-                    self.root.after(0, self.handle_file_reception, message)
+                if dados.startswith(b'/file:'):
+                    partes = dados.split(b':', 2)
+                    if len(partes) == 3:
+                        nome_arquivo = partes[1].decode('utf-8')
+                        dados_arquivo = partes[2]
+
+                        caminho_salvar = filedialog.asksaveasfilename(
+                            initialfile=f"recebido_{nome_arquivo}",
+                            title="Salvar arquivo recebido"
+                        )
+
+                        if caminho_salvar:
+                            with open(caminho_salvar, "wb") as f:
+                                f.write(dados_arquivo)
+                            self.mostrar_mensagem(f"Arquivo recebido: {nome_arquivo}")
+                        else:
+                            self.mostrar_mensagem(f"Recebeu arquivo {nome_arquivo} (não salvo)")
+                    else:
+                        self.mostrar_mensagem("Formato de arquivo recebido inválido.")
+
                 else:
-                    self.root.after(0, self.show_message, message)
+                    try:
+                        mensagem = dados.decode('utf-8')
+                        if not mensagem.startswith(f"{self.nome_usuario}:"):
+                            hora_atual = datetime.now().strftime('%H:%M')
+                            mensagem_formatada = f"[{hora_atual}] {mensagem}"
+                            self.root.after(0, self.mostrar_mensagem, mensagem_formatada)
+                    except UnicodeDecodeError:
+                        self.mostrar_mensagem("Mensagem inválida recebida")
 
-            except socket.timeout:
-                continue  # Timeout normal, continua esperando
-            except ConnectionResetError:
-                self.root.after(0, self.show_message, "Conexão com o servidor foi perdida")
-                break
             except Exception as e:
-                self.root.after(0, self.show_message, f"Erro na conexão: {str(e)}")
+                self.root.after(0, self.mostrar_mensagem, f"Erro na conexão: {str(e)}")
                 break
 
-        # Atualiza estado da conexão
-        self.root.after(0, self.connection_lost)
+        self.root.after(0, self.perdeu_conexao)
 
-    def connection_lost(self):
-        #Perda de conexão
-        self.close_connection()
-        self.connection_btn.config(state=tk.NORMAL)
-        self.show_message("Desconectado. Clique em 'Reconectar' para tentar novamente.")
+    def perdeu_conexao(self):
+        self.fechar_conexao()
+        self.botao_conexao.config(state=tk.NORMAL)
+        self.mostrar_mensagem("Desconectado. Clique em 'Reconectar' para tentar novamente.")
+        self.botao_reconectar.config(state=tk.NORMAL)
 
-    def handle_file_reception(self, header):
-        #Processa recebimento de arquivo
-        if not self.is_connected():
+    def mostrar_mensagem(self, mensagem):
+        self.area_chat.config(state='normal')
+        self.area_chat.insert('end', mensagem + '\n')
+        self.area_chat.config(state='disabled')
+        self.area_chat.see('end')
+
+    def enviar_mensagem(self):
+        if not self.ta_conectado():
+            self.mostrar_mensagem("Erro: Não conectado ao servidor")
             return
 
-        try:
-            filename = header.split(":", 1)[1]
-            file_data = self.client_socket.recv(1024 * 1024)  # 1MB máximo
+        mensagem = self.campo_mensagem.get().strip()
+        self.campo_mensagem.delete(0, 'end')
 
-            save_path = filedialog.asksaveasfilename(
-                initialfile=f"recebido_{filename}",
-                title="Salvar arquivo recebido",
-                filetypes=[("Todos os arquivos", "*.*")]
-            )
+        if mensagem:
+            hora_atual = datetime.now().strftime('%H:%M')
+            mensagem_para_servidor = f"{self.nome_usuario}: {mensagem}"
+            mensagem_local = f"[{hora_atual}] {self.nome_usuario}: {mensagem}"
 
-            if save_path:
-                with open(save_path, "wb") as file:
-                    file.write(file_data)
-                self.show_message(f"Arquivo recebido: {save_path}")
-
-        except Exception as e:
-            self.show_message(f"Erro ao receber arquivo: {str(e)}")
-
-    def show_message(self, message):
-        #Exibe mensagem na área de chat
-        self.chat_area.config(state='normal')
-        self.chat_area.insert('end', message + '\n')
-        self.chat_area.config(state='disabled')
-        self.chat_area.see('end')
-
-    def send_message(self):
-        #Envia mensagem para o servidor
-        if not self.is_connected():
-            self.show_message("Erro: Não conectado ao servidor")
-            return
-
-        message = self.message_entry.get().strip()
-        self.message_entry.delete(0, 'end')
-
-        if message:
-            formatted_message = f"{self.username}: {message}"
-            self.show_message(formatted_message)
+            self.mostrar_mensagem(mensagem_local)
 
             try:
-                self.client_socket.send(formatted_message.encode('utf-8'))
+                self.socket_cliente.send(mensagem_para_servidor.encode('utf-8'))
             except socket.timeout:
-                self.show_message("Erro: Tempo esgotado ao enviar mensagem")
+                self.mostrar_mensagem("Erro: Tempo esgotado ao enviar mensagem")
             except Exception as e:
-                self.show_message(f"Erro ao enviar mensagem: {str(e)}")
-                self.connection_lost()
+                self.mostrar_mensagem(f"Erro ao enviar mensagem: {str(e)}")
+                self.perdeu_conexao()
 
-    def send_file(self):
-        #Envia arquivo para o servidor
-        if not self.is_connected():
-            self.show_message("Erro: Não conectado ao servidor")
+    def enviar_arquivo(self):
+        if not self.ta_conectado():
+            self.mostrar_mensagem("Erro: Não conectado ao servidor")
             return
 
-        filepath = filedialog.askopenfilename(
+        caminho_arquivo = filedialog.askopenfilename(
             title="Selecionar arquivo para enviar"
         )
 
-        if not filepath:
+        if not caminho_arquivo:
             return
 
         try:
-            with open(filepath, 'rb') as file:
-                file_data = file.read()
+            with open(caminho_arquivo, 'rb') as arquivo:
+                dados_arquivo = arquivo.read()
 
-            filename = os.path.basename(filepath)
+            nome_arquivo = os.path.basename(caminho_arquivo)
 
-            # Verifica tamanho do arquivo (limite de 1MB)
-            if len(file_data) > 1024 * 1024:
-                self.show_message("Erro: Arquivo muito grande (limite 1MB)")
+            if len(dados_arquivo) > 10 * 1024 * 1024:  # Limite 10MB
+                self.mostrar_mensagem("Erro: Arquivo muito grande (limite 10MB)")
                 return
 
-            # Envia cabeçalho do arquivo
-            self.client_socket.send(f"/file:{filename}".encode('utf-8'))
-            # Envia dados do arquivo
-            self.client_socket.sendall(file_data)
+            conteudo = b"/file:" + nome_arquivo.encode('utf-8') + b":" + dados_arquivo
+            self.socket_cliente.sendall(conteudo)
 
-            self.show_message(f"Você enviou: {filename}")
+            self.mostrar_mensagem(f"Você enviou: {nome_arquivo}")
 
         except socket.timeout:
-            self.show_message("Erro: Tempo esgotado ao enviar arquivo")
+            self.mostrar_mensagem("Erro: Tempo esgotado ao enviar arquivo")
         except Exception as e:
-            self.show_message(f"Erro ao enviar arquivo: {str(e)}")
-            self.connection_lost()
+            self.mostrar_mensagem(f"Erro ao enviar arquivo: {str(e)}")
+            self.perdeu_conexao()
 
-    def open_emoji_window(self):
-        #Abre janela de seleção de emojis
-        emoji_window = tk.Toplevel(self.root)
-        emoji_window.title("Selecionar Emoji")
-        emoji_window.configure(bg=self.bg_color)
-        emoji_window.resizable(False, False)
+    def abrir_janela_emojis(self):
+        janela_emoji = tk.Toplevel(self.root)
+        janela_emoji.title("Selecionar Emoji")
+        janela_emoji.configure(bg=self.cor_fundo)
+        janela_emoji.resizable(False, False)
 
-        notebook = ttk.Notebook(emoji_window)
-        notebook.pack(padx=10, pady=10)
+        abas = ttk.Notebook(janela_emoji)
+        abas.pack(padx=10, pady=10)
 
-        emoji_categories = {
+        categorias_emojis = {
             "Carinhas": ['😀', '😂', '😍', '😢', '😡', '😎', '🤩', '🥳', '😴', '🤯'],
             "Gestos": ['👍', '🙏', '👎', '🤙', '👏', '👌', '🤝', '✌️', '🤘', '🤞'],
             "Símbolos": ['❤️', '💔', '🎉', '💀', '✨', '🔥', '🌟', '💎', '⚡', '🌈']
         }
 
-        for category_name, emojis in emoji_categories.items():
-            frame = tk.Frame(notebook, bg=self.bg_color)
-            notebook.add(frame, text=category_name)
+        for nome_categoria, emojis in categorias_emojis.items():
+            frame = tk.Frame(abas, bg=self.cor_fundo)
+            abas.add(frame, text=nome_categoria)
 
             for i, emoji in enumerate(emojis):
-                btn = tk.Button(
+                botao = tk.Button(
                     frame,
                     text=emoji,
                     font=("Arial", 14),
-                    command=lambda e=emoji: self.insert_emoji(e, emoji_window),
-                    bg=self.button_bg,
+                    command=lambda e=emoji: self.inserir_emoji(e, janela_emoji),
+                    bg=self.cor_botao,
                     fg="white",
-                    activebackground=self.button_active,
+                    activebackground=self.cor_botao_ativo,
                     relief=tk.FLAT
                 )
-                btn.grid(row=i // 5, column=i % 5, padx=5, pady=5)
+                botao.grid(row=i // 5, column=i % 5, padx=5, pady=5)
 
-    def insert_emoji(self, emoji, window):
-        #Insere emoji no campo de mensagem e fecha janela
-        self.message_entry.insert(tk.END, emoji)
-        window.destroy()
+    def inserir_emoji(self, emoji, janela):
+        self.campo_mensagem.insert(tk.END, emoji)
+        janela.destroy()
 
 
 if __name__ == "__main__":
