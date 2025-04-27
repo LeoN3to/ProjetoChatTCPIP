@@ -6,6 +6,7 @@ from tkinter.font import Font
 import os
 from datetime import datetime
 
+# Definição da classe principal da aplicação
 class ChatApp:
     def __init__(self, root):
         # Inicializa o chat
@@ -16,19 +17,22 @@ class ChatApp:
         self.conectar_no_servidor()
 
     def configurar_janela(self):
+        # Configurações da janela principal
         self.root.title("NetLink Chat")
         self.root.geometry("800x600")
         self.root.configure(bg='#36393f')
         self.root.minsize(600, 400)
         try:
-            self.root.iconbitmap('chat_icon.ico')
+            self.root.iconbitmap('chat_icon.ico')  # Adicionar ícone da janela
         except:
             pass
 
     def criar_variaveis(self):
+        # Criação e definição das variáveis de configuração
         self.fonte_principal = Font(family="Segoe UI", size=12)
         self.fonte_titulo = Font(family="Segoe UI", size=14, weight="bold")
 
+        # Definição das cores
         self.cor_fundo = "#36393f"
         self.cor_texto_fundo = "#2f3136"
         self.cor_texto = "#dcddde"
@@ -36,6 +40,7 @@ class ChatApp:
         self.cor_botao_ativo = "#4752c4"
         self.cor_campo = "#40444b"
 
+        # Configurações de conexão
         self.porta_servidor = 12345
         self.nome_usuario = None
         self.socket_cliente = None
@@ -43,9 +48,11 @@ class ChatApp:
         self.conexao_ativa = False
 
     def montar_interface(self):
+        # Criação da interface gráfica
         frame_principal = tk.Frame(self.root, bg=self.cor_fundo)
         frame_principal.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
+        # Área onde as mensagens são exibidas
         self.area_chat = scrolledtext.ScrolledText(
             frame_principal,
             state='disabled',
@@ -58,9 +65,11 @@ class ChatApp:
         )
         self.area_chat.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
+        # Frame da entrada de mensagens
         frame_entrada = tk.Frame(frame_principal, bg=self.cor_fundo)
         frame_entrada.pack(fill=tk.X)
 
+        # Botão para escolher emojis
         botao_emoji = tk.Button(
             frame_entrada,
             text="😊",
@@ -74,6 +83,7 @@ class ChatApp:
         )
         botao_emoji.pack(side=tk.LEFT, padx=(0, 5))
 
+        # Botão para enviar arquivos
         botao_arquivo = tk.Button(
             frame_entrada,
             text="📎",
@@ -87,6 +97,7 @@ class ChatApp:
         )
         botao_arquivo.pack(side=tk.LEFT, padx=(0, 5))
 
+        # Campo de entrada de texto para mensagens
         self.campo_mensagem = tk.Entry(
             frame_entrada,
             width=50,
@@ -97,8 +108,9 @@ class ChatApp:
             relief=tk.FLAT
         )
         self.campo_mensagem.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
-        self.campo_mensagem.bind("<Return>", lambda e: self.enviar_mensagem())
+        self.campo_mensagem.bind("<Return>", lambda e: self.enviar_mensagem())  # Enviar mensagem ao apertar Enter
 
+        # Botão para enviar mensagem
         botao_enviar = tk.Button(
             frame_entrada,
             text="Enviar",
@@ -111,6 +123,7 @@ class ChatApp:
         )
         botao_enviar.pack(side=tk.LEFT)
 
+        # Botão para reconectar em caso de perda de conexão
         self.botao_conexao = tk.Button(
             frame_principal,
             text="Reconectar",
@@ -128,11 +141,15 @@ class ChatApp:
         self.botao_reconectar.config(state=tk.DISABLED)
 
     def ta_conectado(self):
+        # Verifica se ainda está conectado ao servidor
         return (self.conexao_ativa and self.socket_cliente and
                 hasattr(self.socket_cliente, 'fileno') and self.socket_cliente.fileno() != -1)
 
     def conectar_no_servidor(self):
+        # Realiza a conexão com o servidor
         self.fechar_conexao()
+
+        # Solicita IP do servidor ao usuário
         ip_servidor = simpledialog.askstring(
             "Configuração de Conexão",
             "Digite o IP do servidor:",
@@ -144,6 +161,7 @@ class ChatApp:
             messagebox.showerror("Erro", "Você deve informar o IP do servidor.")
             return
 
+        # Solicita nome de usuário
         self.nome_usuario = simpledialog.askstring(
             "NetLink Chat",
             "Digite seu nome:",
@@ -157,17 +175,19 @@ class ChatApp:
         try:
             self.mostrar_mensagem("Conectando ao servidor...")
 
+            # Cria o socket do cliente e conecta
             self.socket_cliente = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket_cliente.settimeout(30)
+            self.socket_cliente.settimeout(30)  # Timeout inicial
             self.socket_cliente.connect((ip_servidor, self.porta_servidor))
-            self.socket_cliente.settimeout(None)
+            self.socket_cliente.settimeout(None)  # Remove o timeout
             self.conexao_ativa = True
 
+            # Envia o nome de usuário
             self.socket_cliente.send(self.nome_usuario.encode('utf-8'))
 
-            mensagem_boas_vindas = f"Conectado como {self.nome_usuario}"
-            self.mostrar_mensagem(mensagem_boas_vindas)
+            self.mostrar_mensagem(f"Conectado como {self.nome_usuario}")
 
+            # Cria uma thread para receber mensagens
             self.thread_receber = threading.Thread(target=self.pegar_mensagens, daemon=True)
             self.thread_receber.start()
 
@@ -181,10 +201,12 @@ class ChatApp:
             self.botao_conexao.config(state=tk.NORMAL)
 
     def tentar_reconectar(self):
+        # Função para tentar reconectar ao servidor
         self.conectar_no_servidor()
         self.botao_reconectar.config(state=tk.DISABLED)
 
     def fechar_conexao(self):
+        # Fecha a conexão atual
         if hasattr(self, 'socket_cliente') and self.socket_cliente:
             try:
                 self.socket_cliente.close()
@@ -194,6 +216,7 @@ class ChatApp:
         self.socket_cliente = None
 
     def pegar_mensagens(self):
+        # Thread para receber mensagens do servidor
         while self.ta_conectado():
             try:
                 dados = self.socket_cliente.recv(4096)
@@ -202,12 +225,14 @@ class ChatApp:
                     self.root.after(0, self.mostrar_mensagem, "Servidor desconectou")
                     break
 
+                # Verifica se o que foi recebido é um arquivo
                 if dados.startswith(b'/file:'):
                     partes = dados.split(b':', 2)
                     if len(partes) == 3:
                         nome_arquivo = partes[1].decode('utf-8')
                         dados_arquivo = partes[2]
 
+                        # Pergunta onde salvar o arquivo
                         caminho_salvar = filedialog.asksaveasfilename(
                             initialfile=f"recebido_{nome_arquivo}",
                             title="Salvar arquivo recebido"
@@ -225,6 +250,7 @@ class ChatApp:
                 else:
                     try:
                         mensagem = dados.decode('utf-8')
+                        # Exibe mensagens de outros usuários
                         if not mensagem.startswith(f"{self.nome_usuario}:"):
                             hora_atual = datetime.now().strftime('%H:%M')
                             mensagem_formatada = f"[{hora_atual}] {mensagem}"
@@ -239,18 +265,21 @@ class ChatApp:
         self.root.after(0, self.perdeu_conexao)
 
     def perdeu_conexao(self):
+        # Trata perda de conexão com o servidor
         self.fechar_conexao()
         self.botao_conexao.config(state=tk.NORMAL)
         self.mostrar_mensagem("Desconectado. Clique em 'Reconectar' para tentar novamente.")
         self.botao_reconectar.config(state=tk.NORMAL)
 
     def mostrar_mensagem(self, mensagem):
+        # Exibe mensagem na área de chat
         self.area_chat.config(state='normal')
         self.area_chat.insert('end', mensagem + '\n')
         self.area_chat.config(state='disabled')
         self.area_chat.see('end')
 
     def enviar_mensagem(self):
+        # Envia uma mensagem de texto para o servidor
         if not self.ta_conectado():
             self.mostrar_mensagem("Erro: Não conectado ao servidor")
             return
@@ -274,6 +303,7 @@ class ChatApp:
                 self.perdeu_conexao()
 
     def enviar_arquivo(self):
+        # Envia um arquivo para o servidor
         if not self.ta_conectado():
             self.mostrar_mensagem("Erro: Não conectado ao servidor")
             return
@@ -291,7 +321,8 @@ class ChatApp:
 
             nome_arquivo = os.path.basename(caminho_arquivo)
 
-            if len(dados_arquivo) > 10 * 1024 * 1024:  # Limite 10MB
+            # Limita o tamanho do arquivo a 10MB
+            if len(dados_arquivo) > 10 * 1024 * 1024:
                 self.mostrar_mensagem("Erro: Arquivo muito grande (limite 10MB)")
                 return
 
@@ -307,6 +338,7 @@ class ChatApp:
             self.perdeu_conexao()
 
     def abrir_janela_emojis(self):
+        # Abre uma janela para selecionar emojis
         janela_emoji = tk.Toplevel(self.root)
         janela_emoji.title("Selecionar Emoji")
         janela_emoji.configure(bg=self.cor_fundo)
@@ -339,10 +371,11 @@ class ChatApp:
                 botao.grid(row=i // 5, column=i % 5, padx=5, pady=5)
 
     def inserir_emoji(self, emoji, janela):
+        # Insere o emoji no campo de mensagem
         self.campo_mensagem.insert(tk.END, emoji)
         janela.destroy()
 
-
+# Início da aplicação
 if __name__ == "__main__":
     root = tk.Tk()
     app = ChatApp(root)
